@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/minio/minio-go/v7/pkg/s3utils"
 )
 
 type Client struct {
@@ -109,6 +111,10 @@ func (c *Client) signRequest(req *http.Request, payload []byte) error {
 	if canonicalURI == "" {
 		canonicalURI = "/"
 	}
+	// EOS/MinIO S3 Tables expects %1F (encoded) in the signed path for nested namespaces
+	canonicalURI = strings.ReplaceAll(canonicalURI, "\x1f", "%1F")
+	// Apply s3utils.EncodePath to match server's signature calculation
+	canonicalURI = s3utils.EncodePath(canonicalURI)
 
 	canonicalQueryString := req.URL.Query().Encode()
 

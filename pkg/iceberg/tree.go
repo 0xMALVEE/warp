@@ -85,22 +85,19 @@ func (t *Tree) DepthOf(ordinal int) int {
 }
 
 func (t *Tree) PathToRoot(ordinal int) []string {
-	if ordinal == 0 {
-		return []string{t.namespaceName(0)}
-	}
-
-	depth := t.DepthOf(ordinal)
-	path := make([]string, depth+1)
-
+	// Build hierarchical path from root to this node (matching Polaris NAryTreeBuilder)
+	var path []int
 	current := ordinal
-	for i := depth; i >= 0; i-- {
-		path[i] = t.namespaceName(current)
-		if current > 0 {
-			current = t.parentOf(current)
-		}
+	for current >= 0 {
+		path = append([]int{current}, path...)
+		current = t.parentOf(current)
 	}
 
-	return path
+	result := make([]string, len(path))
+	for i, ord := range path {
+		result[i] = t.namespaceName(ord)
+	}
+	return result
 }
 
 func (t *Tree) parentOf(ordinal int) int {
@@ -147,15 +144,16 @@ func (t *Tree) LeafOrdinals() []int {
 }
 
 func (t *Tree) namespaceName(ordinal int) string {
-	return fmt.Sprintf("NS_%d", ordinal)
+	// MinIO S3 Tables doesn't allow underscores in namespace names
+	return fmt.Sprintf("ns%d", ordinal)
 }
 
 func (t *Tree) TableName(index int) string {
-	return fmt.Sprintf("T_%d", index)
+	return fmt.Sprintf("t%d", index)
 }
 
 func (t *Tree) ViewName(index int) string {
-	return fmt.Sprintf("V_%d", index)
+	return fmt.Sprintf("v%d", index)
 }
 
 func (t *Tree) TableLocation(namespace []string, tableName string) string {

@@ -9,6 +9,11 @@ import (
 )
 
 var icebergCommitsFlags = []cli.Flag{
+	cli.IntFlag{
+		Name:  "concurrent",
+		Value: 20,
+		Usage: "Run this many concurrent operations",
+	},
 	cli.StringFlag{
 		Name:   "catalog-uri",
 		Usage:  "Iceberg REST catalog base URL (e.g., http://localhost:9001/_iceberg)",
@@ -48,7 +53,7 @@ var icebergCommitsFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "catalog-name",
 		Usage: "Catalog name to use",
-		Value: "benchmark_catalog",
+		Value: "benchmarkcatalog",
 	},
 	cli.IntFlag{
 		Name:  "namespace-width",
