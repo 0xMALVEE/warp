@@ -62,7 +62,10 @@ func (d *DatasetCreator) CreateNamespaces(ctx context.Context) error {
 		default:
 		}
 
-		props := rest.BuildTableProperties(cfg.PropertiesPerNS, "ns_prop")
+		var props map[string]string
+		if d.ExternalCatalog != ExternalCatalogS3Tables {
+			props = rest.BuildTableProperties(cfg.PropertiesPerNS, "ns_prop")
+		}
 		err := d.getCatalog().CreateNamespace(ctx, ns.Path, props)
 		if err != nil && !IsAlreadyExists(err) {
 			if d.OnError != nil {
@@ -221,6 +224,7 @@ func (d *DatasetCreator) DeleteAll(ctx context.Context) {
 	}
 
 	// Delete tables concurrently
+	// For S3 Tables, must use PurgeTable (purge=true) as DropTable returns 400
 	tables := d.Tree.AllTables()
 	if len(tables) > 0 {
 		var wg sync.WaitGroup
@@ -232,7 +236,11 @@ func (d *DatasetCreator) DeleteAll(ctx context.Context) {
 				defer wg.Done()
 				defer func() { <-sem }()
 				ident := toTableIdentifier(tbl.Namespace, tbl.Name)
-				_ = d.getCatalog().DropTable(ctx, ident)
+				if d.ExternalCatalog == ExternalCatalogS3Tables {
+					_ = d.getCatalog().PurgeTable(ctx, ident)
+				} else {
+					_ = d.getCatalog().DropTable(ctx, ident)
+				}
 			}(tbl)
 		}
 		wg.Wait()

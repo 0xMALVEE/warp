@@ -48,8 +48,9 @@ type ExternalCatalogType string
 
 // External catalog type constants.
 const (
-	ExternalCatalogNone    ExternalCatalogType = ""
-	ExternalCatalogPolaris ExternalCatalogType = "polaris"
+	ExternalCatalogNone     ExternalCatalogType = ""
+	ExternalCatalogPolaris  ExternalCatalogType = "polaris"
+	ExternalCatalogS3Tables ExternalCatalogType = "s3tables"
 )
 
 // sharedCatalogTransport is a global high-performance transport shared across all catalog clients.
@@ -80,6 +81,8 @@ func NewCatalog(ctx context.Context, cfg CatalogConfig) (*rest.Catalog, error) {
 	switch cfg.ExternalCatalog {
 	case ExternalCatalogPolaris:
 		return newPolarisCatalog(ctx, cfg)
+	case ExternalCatalogS3Tables:
+		return newS3TablesCatalog(ctx, cfg)
 	default:
 		return newAIStorCatalog(ctx, cfg)
 	}
@@ -164,6 +167,44 @@ func newPolarisCatalog(ctx context.Context, cfg CatalogConfig) (*rest.Catalog, e
 	cat, err := rest.NewCatalog(ctx, "rest", u.String(), opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Polaris catalog: %w", err)
+	}
+
+	return cat, nil
+}
+
+// newS3TablesCatalog creates a catalog connection for AWS S3 Tables (SigV4 auth with s3tables signing name).
+// AWS S3 Tables uses the Iceberg REST catalog API at https://s3tables.<region>.amazonaws.com/iceberg
+// with SigV4 signing using "s3tables" as the service name.
+// The warehouse should be the table bucket ARN: arn:aws:s3tables:<region>:<account>:bucket/<bucket-name>
+func newS3TablesCatalog(ctx context.Context, cfg CatalogConfig) (*rest.Catalog, error) {
+	u, err := url.Parse(cfg.CatalogURI)
+	if err != nil {
+		return nil, fmt.Errorf("invalid catalog URI: %w", err)
+	}
+
+	if cfg.Region == "" {
+		cfg.Region = "us-east-1"
+	}
+
+	awsCfg := aws.Config{
+		Region: cfg.Region,
+		Credentials: credentials.NewStaticCredentialsProvider(
+			cfg.AccessKey,
+			cfg.SecretKey,
+			"",
+		),
+	}
+
+	opts := []rest.Option{
+		rest.WithWarehouseLocation(cfg.Warehouse),
+		rest.WithAwsConfig(awsCfg),
+		rest.WithSigV4RegionSvc(cfg.Region, "s3tables"),
+		rest.WithCustomTransport(sharedCatalogTransport),
+	}
+
+	cat, err := rest.NewCatalog(ctx, "rest", u.String(), opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create S3 Tables catalog: %w", err)
 	}
 
 	return cat, nil

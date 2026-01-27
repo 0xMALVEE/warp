@@ -336,8 +336,11 @@ func buildCatalogURLs(hosts []string, useTLS bool, externalCatalog iceberg.Exter
 
 	// Determine catalog path based on external catalog type
 	catalogPath := "/_iceberg"
-	if externalCatalog == iceberg.ExternalCatalogPolaris {
+	switch externalCatalog {
+	case iceberg.ExternalCatalogPolaris:
 		catalogPath = "/api/catalog"
+	case iceberg.ExternalCatalogS3Tables:
+		catalogPath = "/iceberg"
 	}
 
 	urls := make([]string, len(hosts))

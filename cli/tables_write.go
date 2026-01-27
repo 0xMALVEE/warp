@@ -31,7 +31,7 @@ import (
 var tablesWriteFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "external-catalog",
-		Usage: "External catalog type (polaris)",
+		Usage: "External catalog type (polaris, s3tables)",
 		Value: "",
 	},
 	cli.StringFlag{
@@ -210,9 +210,14 @@ func mainTablesWrite(ctx *cli.Context) error {
 	catalogPool, err := iceberg.NewCatalogPool(context.Background(), catalogURLs, catalogCfg)
 	fatalIf(probe.NewError(err), "Failed to create catalog pool")
 
+	namespaceDepth := ctx.Int("namespace-depth")
+	if externalCatalog == iceberg.ExternalCatalogS3Tables {
+		namespaceDepth = 1
+	}
+
 	treeCfg := iceberg.TreeConfig{
 		NamespaceWidth:   ctx.Int("namespace-width"),
-		NamespaceDepth:   ctx.Int("namespace-depth"),
+		NamespaceDepth:   namespaceDepth,
 		TablesPerNS:      ctx.Int("tables-per-ns"),
 		ViewsPerNS:       0,
 		ColumnsPerTable:  ctx.Int("columns"),

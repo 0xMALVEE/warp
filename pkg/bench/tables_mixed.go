@@ -275,7 +275,11 @@ func (b *IcebergMixed) doFetchAllChildrenNamespaces(ctx context.Context, rcv cha
 		Endpoint: catalogName,
 	}
 	op.Start = time.Now()
-	_, err := cat.ListNamespaces(ctx, ns.Path)
+	var parent []string
+	if b.ExternalCatalog != icebergpkg.ExternalCatalogS3Tables {
+		parent = ns.Path
+	}
+	_, err := cat.ListNamespaces(ctx, parent)
 	op.End = time.Now()
 	if err != nil {
 		op.Err = err.Error()

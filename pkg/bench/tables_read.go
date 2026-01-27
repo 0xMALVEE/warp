@@ -248,7 +248,11 @@ func (b *IcebergRead) listNamespaces(ctx context.Context, rcv chan<- Operation, 
 		Endpoint: catalogName,
 	}
 	op.Start = time.Now()
-	_, err := cat.ListNamespaces(ctx, ns.Path)
+	var parent []string
+	if b.ExternalCatalog != iceberg.ExternalCatalogS3Tables {
+		parent = ns.Path
+	}
+	_, err := cat.ListNamespaces(ctx, parent)
 	op.End = time.Now()
 	if err != nil {
 		op.Err = err.Error()
