@@ -20,6 +20,8 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"strconv"
+	"time"
 	"math/rand"
 	"strings"
 	"sync/atomic"
@@ -46,6 +48,16 @@ var putFlags = []cli.Flag{
 	cli.BoolFlag{
 		Name:  "post",
 		Usage: "Use PostObject for upload. Will force single part upload",
+	},
+	cli.StringFlag{
+		Name:  "mtime-age",
+		Value: "",
+		Usage: "Set object mtime to N days ago. Use 'N' for fixed or 'N-M' for random range (e.g., '45' or '41-45'). Useful for ILM expiry testing.",
+	},
+	cli.IntFlag{
+		Name:  "ilm-expiry",
+		Value: 0,
+		Usage: "Set ILM expiry rule on bucket to expire objects older than N days. Use with --mtime-age for testing.",
 	},
 }
 
@@ -77,8 +89,42 @@ func mainPut(ctx *cli.Context) error {
 		Common:     getCommon(ctx, newGenSource(ctx, "obj.size")),
 		PostObject: ctx.Bool("post"),
 	}
+	b.Common.MtimeFunc = parseMtimeAge(ctx)
+	b.Common.ILMExpiryDays = ctx.Int("ilm-expiry")
 	return runBench(ctx, &b)
 }
+
+// parseMtimeAge parses mtime-age flag and returns a function that generates mtime.
+// Returns nil if flag is not set.
+func parseMtimeAge(ctx *cli.Context) func() time.Time {
+	mtimeAge := ctx.String("mtime-age")
+	if mtimeAge == "" {
+		return nil
+	}
+
+	if strings.Contains(mtimeAge, "-") {
+		parts := strings.SplitN(mtimeAge, "-", 2)
+		minDays, err1 := strconv.Atoi(parts[0])
+		maxDays, err2 := strconv.Atoi(parts[1])
+		if err1 != nil || err2 != nil || minDays > maxDays || minDays < 0 {
+			console.Fatalf("--mtime-age range must be 'MIN-MAX' where MIN <= MAX (e.g., '41-45')")
+		}
+		return func() time.Time {
+			days := minDays + rand.Intn(maxDays-minDays+1)
+			return time.Now().AddDate(0, 0, -days)
+		}
+	}
+
+	days, err := strconv.Atoi(mtimeAge)
+	if err != nil || days < 0 {
+		console.Fatalf("--mtime-age must be a positive number of days or a range like '41-45')")
+	}
+	fixedTime := time.Now().AddDate(0, 0, -days)
+	return func() time.Time {
+		return fixedTime
+	}
+}
+
 
 const metadataChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-_."
 

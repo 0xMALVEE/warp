@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/lifecycle"
 	"github.com/minio/warp/pkg/generator"
 
 	"golang.org/x/time/rate"
@@ -113,6 +114,12 @@ type Common struct {
 
 	// UpdateStatus
 	UpdateStatus func(s string)
+
+	// MtimeFunc returns the mtime to use for objects. If nil, current time is used.
+	MtimeFunc func() time.Time
+
+	// ILMExpiryDays sets an ILM expiry rule on the bucket (0 = disabled).
+	ILMExpiryDays int
 }
 
 const (
@@ -187,6 +194,25 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 	if bvc, err := cl.GetBucketVersioning(ctx, c.Bucket); err == nil {
 		c.Versioned = bvc.Status == "Enabled"
 	}
+
+	// Set ILM expiry rule if requested
+	if c.ILMExpiryDays > 0 {
+		c.UpdateStatus(fmt.Sprintf("Setting ILM expiry rule: %d days", c.ILMExpiryDays))
+		lcConfig := lifecycle.NewConfiguration()
+		lcConfig.Rules = []lifecycle.Rule{
+			{
+				ID:     "warp-expiry-rule",
+				Status: "Enabled",
+				Expiration: lifecycle.Expiration{
+					Days: lifecycle.ExpirationDays(c.ILMExpiryDays),
+				},
+			},
+		}
+		if err := cl.SetBucketLifecycle(ctx, c.Bucket, lcConfig); err != nil {
+			return fmt.Errorf("failed to set ILM expiry rule: %w", err)
+		}
+	}
+
 
 	if c.Clear {
 		c.UpdateStatus(fmt.Sprintf("Clearing Bucket %q", c.Bucket))

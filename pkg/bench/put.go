@@ -94,6 +94,9 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 
 				obj := src.Object()
 				opts.ContentType = obj.ContentType
+				if u.MtimeFunc != nil {
+					opts.Internal.SourceMTime = u.MtimeFunc()
+				}
 				client, cldone := u.Client()
 				op := Operation{
 					OpType:   http.MethodPut,
